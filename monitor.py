@@ -1,5 +1,5 @@
 import feedparser, json, os, urllib.request
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 CHANNELS = {
     "Fabrizio Romano": "UCX1em-uaFMS02Rrk_Bowyng",
@@ -58,7 +58,11 @@ for name, cid in CHANNELS.items():
         if vid and vid not in old:
             title = e.get("title","")
             link = e.get("link","")
-            pub = e.get("published","")[:16]
+            pub_raw = e.get("published","")
+            try:
+                dt = datetime.fromisoformat(pub_raw.replace("Z","+00:00"))
+                pub = (dt + timedelta(hours=8)).strftime("%m-%d %H:%M")
+            except: pub = pub_raw[:16]
             new.append((name, title, link, pub))
             old.append(vid)
     seen[cid] = old[-200:]
