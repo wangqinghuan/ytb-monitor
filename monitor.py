@@ -96,7 +96,7 @@ for name, cid in CHANNELS.items():
 
 last_search = seen.get("_last_search", "")
 now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00","Z")
-if not last_search or (datetime.now(timezone.utc) - datetime.fromisoformat(last_search.replace("Z","+00:00"))).total_seconds() > 1800:
+if not last_search or (datetime.now(timezone.utc) - datetime.fromisoformat(last_search.replace("Z","+00:00"))).total_seconds() > 7200:
     for kw in SEARCH_KEYWORDS:
         items = search_youtube(kw, last_search or (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00","Z"))
         for item in items:
