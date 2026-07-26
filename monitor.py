@@ -1,12 +1,9 @@
-import feedparser, json, os, sys, urllib.request
+import feedparser, json, os, sys, requests
 from datetime import datetime, timedelta
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 IS_CI = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
-
-if not IS_CI:
-    os.environ["http_proxy"] = "http://127.0.0.1:7897"
-    os.environ["https_proxy"] = "http://127.0.0.1:7897"
+PROXIES = None if IS_CI else {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}
 
 CHANNELS = {
     "Fabrizio Romano": "UCX1em-uaFMS02Rrk_Bowyng",
@@ -27,26 +24,20 @@ API_KEYS = [k for k in [
 ] if k]
 ki = 0
 
-if IS_CI:
-    proxy_handler = urllib.request.ProxyHandler({})
-else:
-    proxy_handler = urllib.request.ProxyHandler({"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"})
-opener = urllib.request.build_opener(proxy_handler)
-
 def translate(t):
     global ki
     if not API_KEYS:
         return t
     for _ in range(4):
         try:
-            p = json.dumps({"contents":[{"parts":[{"text":f"Translate to Chinese, output only translation:\n{t}"}]}]}).encode()
             k = API_KEYS[ki % len(API_KEYS)]; ki += 1
-            req = urllib.request.Request(
+            r = requests.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                data=p, headers={"Content-Type": "application/json"}
+                json={"contents": [{"parts": [{"text": f"Translate to Chinese, output only translation:\n{t}"}]}]},
+                proxies=PROXIES, timeout=30
             )
-            with opener.open(req, 30) as resp:
-                return json.loads(resp.read())["candidates"][0]["content"]["parts"][0]["text"].strip().strip('"')
+            if r.status_code == 200:
+                return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip().strip('"')
         except Exception as e:
             print(f"  translate error: {e}")
     return t
@@ -61,13 +52,11 @@ def save(s):
 
 def discord(msg):
     if not WEBHOOK:
-        print(f"  discord: NO WEBHOOK CONFIGURED")
+        print(f"  discord: NO WEBHOOK")
         return
     try:
-        body = json.dumps({"content": msg}).encode("utf-8")
-        req = urllib.request.Request(WEBHOOK, data=body, headers={"Content-Type": "application/json; charset=utf-8"})
-        with opener.open(req, 15) as resp:
-            print(f"  discord: {resp.status}")
+        r = requests.post(WEBHOOK, json={"content": msg}, proxies=PROXIES, timeout=15)
+        print(f"  discord: {r.status_code}")
     except Exception as e:
         print(f"  discord error: {e}")
 
@@ -76,7 +65,9 @@ new = []
 
 for name, cid in CHANNELS.items():
     try:
-        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}")
+        url = f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
+        resp = requests.get(url, proxies=PROXIES, timeout=30)
+        feed = feedparser.parse(resp.text)
     except Exception as e:
         print(f"WARNING: {name} RSS failed: {e}")
         continue
