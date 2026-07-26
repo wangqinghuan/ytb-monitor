@@ -15,6 +15,7 @@ SEARCH_KEYWORDS = [
     "Mbappé",
     "Zidane",
     "équipe de France",
+    "PSG Luis Enrique",
     "mercato PSG",
     "mercato Barcelona",
 ]
