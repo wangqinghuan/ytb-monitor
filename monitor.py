@@ -69,6 +69,6 @@ if not new:
 else:
     for ch, title, link, pub in new:
         cn = translate(title)
-        msg = f"**{ch}**\n{cn}\n{title}\n{link}"
+        msg = f"**{ch}** {pub}\n{cn}\n{link}"
         discord(msg)
         print(f"Sent: {ch} - {cn}")
