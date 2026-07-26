@@ -10,16 +10,6 @@ CHANNELS = {
     "PSG": "UCt9a_qP9CqHCNwilf-iULag",
 }
 
-SEARCH_KEYWORDS = [
-    "Olise transfert",
-    "Mbappé",
-    "Zidane",
-    "équipe de France",
-    "PSG Luis Enrique",
-    "mercato PSG",
-    "mercato Barcelona",
-]
-
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen.json")
 WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 API_KEYS = [
@@ -58,20 +48,6 @@ def discord(msg):
         urllib.request.urlopen(r, 15)
     except: pass
 
-def search_youtube(keyword, after_time):
-    global ki
-    for _ in range(4):
-        try:
-            k = API_KEYS[ki % 4]; ki += 1
-            url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&q={urllib.request.quote(keyword)}&type=video&order=date&publishedAfter={after_time}&maxResults=5&key={k}"
-            r = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(r, 30) as resp:
-                data = json.loads(resp.read())
-                return data.get("items", [])
-        except Exception as e:
-            print(f"Search error: {e}")
-    return []
-
 seen = load()
 new = []
 
@@ -79,8 +55,10 @@ for name, cid in CHANNELS.items():
     try:
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}")
     except: continue
+    if not feed.entries:
+        print(f"WARNING: {name} RSS empty,可能被墙或无视频")
     old = seen.get(cid, [])
-    for e in feed.entries[:10]:
+    for e in feed.entries[:15]:
         vid = e.get("yt_videoid","")
         if vid and vid not in old:
             title = e.get("title","")
@@ -93,28 +71,6 @@ for name, cid in CHANNELS.items():
             new.append((name, title, link, pub))
             old.append(vid)
     seen[cid] = old[-200:]
-
-last_search = seen.get("_last_search", "")
-now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00","Z")
-if not last_search or (datetime.now(timezone.utc) - datetime.fromisoformat(last_search.replace("Z","+00:00"))).total_seconds() > 7200:
-    for kw in SEARCH_KEYWORDS:
-        items = search_youtube(kw, last_search or (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00","Z"))
-        for item in items:
-            vid = item["id"]["videoId"]
-            if vid in seen.get("_search_seen", []):
-                continue
-            title = item["snippet"]["title"]
-            channel = item["snippet"]["channelTitle"]
-            link = f"https://www.youtube.com/watch?v={vid}"
-            pub_raw = item["snippet"]["publishedAt"]
-            try:
-                dt = datetime.fromisoformat(pub_raw.replace("Z","+00:00"))
-                pub = (dt + timedelta(hours=8)).strftime("%m-%d %H:%M")
-            except: pub = pub_raw[:16]
-            new.append((f"[搜索] {channel}", title, link, pub))
-            seen.setdefault("_search_seen", []).append(vid)
-    seen["_search_seen"] = seen.get("_search_seen", [])[-500:]
-    seen["_last_search"] = now_iso
 
 save(seen)
 
