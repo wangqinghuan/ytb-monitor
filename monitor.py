@@ -5,6 +5,8 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 IS_CI = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
 PROXIES = None if IS_CI else {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}
 
+print(f"START: IS_CI={IS_CI}, WEBHOOK={'SET' if os.environ.get('DISCORD_WEBHOOK') else 'EMPTY'}, KEYS={sum(1 for k in [os.environ.get(f'GEMINI_KEY_{i}','') for i in range(1,5)] if k)}")
+
 CHANNELS = {
     "Fabrizio Romano": "UCX1em-uaFMS02Rrk_Bowyng",
     "mercato": "UCrzDtXyuSBch2u_31JJj-Dw",
@@ -61,6 +63,7 @@ def discord(msg):
         print(f"  discord error: {e}")
 
 seen = load()
+print(f"SEEN: loaded {len(seen)} channels")
 new = []
 
 for name, cid in CHANNELS.items():
@@ -68,11 +71,12 @@ for name, cid in CHANNELS.items():
         url = f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
         resp = requests.get(url, proxies=PROXIES, timeout=30)
         feed = feedparser.parse(resp.text)
+        print(f"  {name}: {len(feed.entries)} entries, RSS={resp.status_code}")
     except Exception as e:
-        print(f"WARNING: {name} RSS failed: {e}")
+        print(f"  {name}: FAILED - {e}")
         continue
     if not feed.entries:
-        print(f"WARNING: {name} RSS empty")
+        print(f"  {name}: RSS empty!")
     old = seen.get(cid, [])
     for e in feed.entries[:15]:
         vid = e.get("yt_videoid", "")
@@ -85,10 +89,13 @@ for name, cid in CHANNELS.items():
                 pub = (dt + timedelta(hours=8)).strftime("%m-%d %H:%M")
             except: pub = pub_raw[:16]
             new.append((name, title, link, pub))
+            print(f"    NEW: {vid} - {title[:50]}")
             old.append(vid)
     seen[cid] = old[-200:]
 
 save(seen)
+
+print(f"RESULT: {len(new)} new videos")
 
 if not new:
     print("No new videos")
